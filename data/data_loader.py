@@ -6,7 +6,7 @@ import torch
 from torch.utils.data import Dataset, DataLoader
 # from sklearn.preprocessing import StandardScaler
 
-from utils.tools import StandardScaler
+from utils.tools import StandardScaler, MinMaxScaler
 from utils.timefeatures import time_features
 
 import warnings
@@ -217,6 +217,9 @@ class Dataset_Custom(Dataset):
 
     def __read_data__(self):
         self.scaler = StandardScaler()
+        print('Using StandardScaler')
+        #self.scaler = MinMaxScaler()
+        #print('Using MinMaxScaler')
         df_raw = pd.read_csv(os.path.join(self.root_path,
                                           self.data_path))
         '''
