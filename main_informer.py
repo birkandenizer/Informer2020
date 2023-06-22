@@ -73,7 +73,7 @@ data_parser = {
     'ETTh2':{'data':'ETTh2.csv','T':'OT','M':[7,7,7],'S':[1,1,1],'MS':[7,7,1]},
     'ETTm1':{'data':'ETTm1.csv','T':'OT','M':[7,7,7],'S':[1,1,1],'MS':[7,7,1]},
     'ETTm2':{'data':'ETTm2.csv','T':'OT','M':[7,7,7],'S':[1,1,1],'MS':[7,7,1]},
-    '4G':{'data':'TT7.csv','T':'bandwidth','M':[8,8,8],'S':[1,1,1],'MS':[8,8,1]},
+    '4G':{'data':'MM15.csv','T':'bandwidth','M':[8,8,8],'S':[1,1,1],'MS':[8,8,1]},
     '5G':{'data':'download.csv','T':'DL_bitrate','M':[7,7,7],'S':[1,1,1],'MS':[7,7,1]},
     'WTH':{'data':'WTH.csv','T':'WetBulbCelsius','M':[12,12,12],'S':[1,1,1],'MS':[12,12,1]},
     'ECL':{'data':'ECL.csv','T':'MT_320','M':[321,321,321],'S':[1,1,1],'MS':[321,321,1]},

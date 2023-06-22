@@ -6,7 +6,7 @@ import torch
 from torch.utils.data import Dataset, DataLoader
 # from sklearn.preprocessing import StandardScaler
 
-from utils.tools import StandardScaler, MinMaxScaler
+from utils.tools import StandardScaler, MinMaxScaler, MinMaxScalerv2
 from utils.timefeatures import time_features
 
 import warnings
@@ -189,6 +189,7 @@ class Dataset_Custom(Dataset):
     def __init__(self, root_path, flag='train', size=None, 
                  features='S', data_path='ETTh1.csv', 
                  target='OT', scale=True, inverse=False, timeenc=0, freq='h', cols=None):
+        print('Using Dataset_Custom')
         # size [seq_len, label_len, pred_len]
         # info
         if size == None:
@@ -220,6 +221,8 @@ class Dataset_Custom(Dataset):
         print('Using StandardScaler')
         #self.scaler = MinMaxScaler()
         #print('Using MinMaxScaler')
+        #self.scaler = MinMaxScalerv2()
+        #print('Using MinMaxScalerv2')
         df_raw = pd.read_csv(os.path.join(self.root_path,
                                           self.data_path))
         '''
@@ -291,6 +294,7 @@ class Dataset_Pred(Dataset):
     def __init__(self, root_path, flag='pred', size=None, 
                  features='S', data_path='ETTh1.csv', 
                  target='OT', scale=True, inverse=False, timeenc=0, freq='15min', cols=None):
+        print('Using Dataset_Pred')
         # size [seq_len, label_len, pred_len]
         # info
         if size == None:
@@ -317,6 +321,9 @@ class Dataset_Pred(Dataset):
 
     def __read_data__(self):
         self.scaler = StandardScaler()
+        print('Using StandardScaler')
+        #self.scaler = MinMaxScalerv2()
+        #print('Using MinMaxScalerv2')
         df_raw = pd.read_csv(os.path.join(self.root_path,
                                           self.data_path))
         '''
