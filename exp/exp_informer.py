@@ -3,7 +3,8 @@ from exp.exp_basic import Exp_Basic
 from models.model import Informer, InformerStack
 
 from utils.tools import EarlyStopping, adjust_learning_rate
-from utils.metrics import metric
+from utils.metrics import metric, classification_metric, FocalLoss
+from torchvision.ops import sigmoid_focal_loss
 
 import numpy as np
 
@@ -71,6 +72,7 @@ class Exp_Informer(Exp_Basic):
             'custom':Dataset_Custom,
             '4G':Dataset_Custom,
             '5G':Dataset_Custom,
+            '5G_h':Dataset_Custom,
         }
         Data = data_dict[self.args.data]
         timeenc = 0 if args.embed!='timeF' else 1
@@ -110,6 +112,10 @@ class Exp_Informer(Exp_Basic):
     
     def _select_criterion(self):
         criterion =  nn.MSELoss()
+        #criterion = nn.CrossEntropyLoss()
+        #criterion = nn.BCELoss() # Balanced Cross-Entropy Loss # Gives error
+        #criterion = FocalLoss()
+        #criterion = sigmoid_focal_loss()
         return criterion
 
     def vali(self, vali_data, vali_loader, criterion):
@@ -156,6 +162,8 @@ class Exp_Informer(Exp_Basic):
                 model_optim.zero_grad()
                 pred, true = self._process_one_batch(
                     train_data, batch_x, batch_y, batch_x_mark, batch_y_mark)
+                #print(f'type of pred: {type(pred)}, type of true: {type(true)}')
+                #print(f'size of pred: {pred.size()}, size of true: {true.size()}')
                 loss = criterion(pred, true)
                 train_loss.append(loss.item())
                 
@@ -222,6 +230,9 @@ class Exp_Informer(Exp_Basic):
 
         mae, mse, rmse, mape, mspe = metric(preds, trues)
         print('rmse:{}, mae:{}, mse:{}'.format(rmse, mae, mse))
+
+        #acc, f1 = classification_metric(preds, trues)
+        #print('acc:{}, f1:{}'.format(acc, f1))
 
         np.save(folder_path+'metrics.npy', np.array([mae, mse, rmse, mape, mspe]))
         np.save(folder_path+'pred.npy', preds)

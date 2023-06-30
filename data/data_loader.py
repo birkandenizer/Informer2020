@@ -193,13 +193,16 @@ class Dataset_Custom(Dataset):
         # size [seq_len, label_len, pred_len]
         # info
         if size == None:
+            print('size None')
             self.seq_len = 24*4*4
             self.label_len = 24*4
             self.pred_len = 24*4
         else:
+            print('size given')
             self.seq_len = size[0]
             self.label_len = size[1]
             self.pred_len = size[2]
+        print(f'seq_len: {self.seq_len}, label_len: {self.label_len}, pred_len: {self.pred_len}')
         # init
         assert flag in ['train', 'test', 'val']
         type_map = {'train':0, 'val':1, 'test':2}
