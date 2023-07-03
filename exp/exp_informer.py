@@ -1,6 +1,6 @@
 from data.data_loader import Dataset_ETT_hour, Dataset_ETT_minute, Dataset_Custom, Dataset_Pred
 from exp.exp_basic import Exp_Basic
-from models.model import Informer, InformerStack
+from models.model import Informer, InformerStack, InformerC
 
 from utils.tools import EarlyStopping, adjust_learning_rate
 from utils.metrics import metric, classification_metric, FocalLoss
@@ -26,10 +26,11 @@ class Exp_Informer(Exp_Basic):
     def _build_model(self):
         model_dict = {
             'informer':Informer,
+            'informerc':InformerC,
             'informerstack':InformerStack,
         }
-        if self.args.model=='informer' or self.args.model=='informerstack':
-            e_layers = self.args.e_layers if self.args.model=='informer' else self.args.s_layers
+        if self.args.model=='informer' or self.args.model=='informerc' or self.args.model=='informerstack':
+            e_layers = self.args.e_layers if self.args.model=='informer' or self.args.model=='informerc' else self.args.s_layers
             model = model_dict[self.args.model](
                 self.args.enc_in,
                 self.args.dec_in, 
@@ -111,11 +112,15 @@ class Exp_Informer(Exp_Basic):
         return model_optim
     
     def _select_criterion(self):
-        criterion =  nn.MSELoss()
-        #criterion = nn.CrossEntropyLoss()
-        #criterion = nn.BCELoss() # Balanced Cross-Entropy Loss # Gives error
-        #criterion = FocalLoss()
-        #criterion = sigmoid_focal_loss()
+        if self.args.model=='informer':
+            print('model informer - MSELoss')
+            criterion =  nn.MSELoss()
+        if self.args.model=='informerc':
+            print('model informerc - CrossEntropyLoss')
+            criterion = nn.CrossEntropyLoss()
+            #criterion = nn.BCELoss() # Balanced Cross-Entropy Loss # Gives error
+            #criterion = FocalLoss()
+            #criterion = sigmoid_focal_loss()
         return criterion
 
     def vali(self, vali_data, vali_loader, criterion):
@@ -124,7 +129,7 @@ class Exp_Informer(Exp_Basic):
         for i, (batch_x,batch_y,batch_x_mark,batch_y_mark) in enumerate(vali_loader):
             pred, true = self._process_one_batch(
                 vali_data, batch_x, batch_y, batch_x_mark, batch_y_mark)
-            loss = criterion(pred.detach().cpu(), true.detach().cpu())
+            loss = criterion(pred.detach().cpu().flatten(), true.detach().cpu().flatten())
             total_loss.append(loss)
         total_loss = np.average(total_loss)
         self.model.train()
@@ -162,8 +167,19 @@ class Exp_Informer(Exp_Basic):
                 model_optim.zero_grad()
                 pred, true = self._process_one_batch(
                     train_data, batch_x, batch_y, batch_x_mark, batch_y_mark)
-                #print(f'type of pred: {type(pred)}, type of true: {type(true)}')
-                #print(f'size of pred: {pred.size()}, size of true: {true.size()}')
+                print(f'type of pred: {type(pred)}, type of true: {type(true)}')
+                print(f'size of pred: {pred.size()}, size of true: {true.size()}')
+                print(pred)
+                print(true)
+
+                print('flatten')
+                pred = pred.flatten()
+                true = true.flatten()
+                print(f'type of pred: {type(pred)}, type of true: {type(true)}')
+                print(f'size of pred: {pred.size()}, size of true: {true.size()}')
+                print(pred)
+                print(true)
+
                 loss = criterion(pred, true)
                 train_loss.append(loss.item())
                 
@@ -213,8 +229,8 @@ class Exp_Informer(Exp_Basic):
         for i, (batch_x,batch_y,batch_x_mark,batch_y_mark) in enumerate(test_loader):
             pred, true = self._process_one_batch(
                 test_data, batch_x, batch_y, batch_x_mark, batch_y_mark)
-            preds.append(pred.detach().cpu().numpy())
-            trues.append(true.detach().cpu().numpy())
+            preds.append(pred.detach().cpu().numpy().flatten())
+            trues.append(true.detach().cpu().numpy().flatten())
 
         preds = np.array(preds)
         trues = np.array(trues)

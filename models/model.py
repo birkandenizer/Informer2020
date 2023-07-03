@@ -87,6 +87,71 @@ class Informer(nn.Module):
         else:
             return dec_out[:,-self.pred_len:,:] # [B, L, D]
 
+class InformerC(nn.Module):
+    def __init__(self, enc_in, dec_in, c_out, seq_len, label_len, out_len, 
+                factor=5, d_model=512, n_heads=8, e_layers=3, d_layers=2, d_ff=512, 
+                dropout=0.0, attn='prob', embed='fixed', freq='h', activation='gelu', 
+                output_attention = False, distil=True, mix=True,
+                device=torch.device('cuda:0')):
+        super(InformerC, self).__init__()
+        self.pred_len = out_len
+        self.attn = attn
+        self.output_attention = output_attention
+
+        # Encoding
+        self.enc_embedding = DataEmbedding(enc_in, d_model, embed, freq, dropout)
+        self.dec_embedding = DataEmbedding(dec_in, d_model, embed, freq, dropout)
+        # Attention
+        Attn = ProbAttention if attn=='prob' else FullAttention
+        # Encoder
+        self.encoder = Encoder(
+            [
+                EncoderLayer(
+                    AttentionLayer(Attn(False, factor, attention_dropout=dropout, output_attention=output_attention), 
+                                d_model, n_heads, mix=False),
+                    d_model,
+                    d_ff,
+                    dropout=dropout,
+                    activation=activation
+                ) for l in range(e_layers)
+            ],
+            [
+                ConvLayer(
+                    d_model
+                ) for l in range(e_layers-1)
+            ] if distil else None,
+            norm_layer=torch.nn.LayerNorm(d_model)
+        )
+        embedding_dim = d_model
+        max_len = 32 # batch size is 32, token lenght of decoder was 48
+        in_features = embedding_dim * max_len
+        NUM_LABELS = 2
+        self.dense = nn.Linear(in_features, NUM_LABELS, bias=True)
+        self.logsoftmax = nn.LogSoftmax(dim=1)
+        self.softmax = nn.Softmax(dim=1)
+        
+    def forward(self, x_enc, x_mark_enc, x_dec, x_mark_dec, 
+                enc_self_mask=None, dec_self_mask=None, dec_enc_mask=None):
+        enc_out = self.enc_embedding(x_enc, x_mark_enc)
+        enc_out, _ = self.encoder(enc_out, attn_mask=enc_self_mask)
+
+        enc_out = enc_out.reshape(enc_out.shape[1], -1)
+
+        out = self.dense(enc_out)
+        print('out after dense')
+        print(out)
+
+        #print('apply LogSoftmax')
+        #out = self.logsoftmax(out)
+        print('apply softmax')
+        out = self.softmax(out)
+        print(out)
+
+        values, indices = torch.max(out, dim=1, keepdim=True)
+        #preds = torch.argmax(out, 1)
+        print(values)
+
+        return values
 
 class InformerStack(nn.Module):
     def __init__(self, enc_in, dec_in, c_out, seq_len, label_len, out_len, 

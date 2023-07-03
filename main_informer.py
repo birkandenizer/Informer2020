@@ -75,7 +75,7 @@ data_parser = {
     'ETTm2':{'data':'ETTm2.csv','T':'OT','M':[7,7,7],'S':[1,1,1],'MS':[7,7,1]},
     '4G':{'data':'MM15.csv','T':'bandwidth','M':[7,7,7],'S':[1,1,1],'MS':[7,7,1]},
     '5G':{'data':'download.csv','T':'DL_bitrate','M':[12,12,12],'S':[1,1,1],'MS':[12,12,1]},
-    '5G_h':{'data':'driving.csv','T':'NRZ','M':[12,12,12],'S':[1,1,1],'MS':[12,12,1]},
+    '5G_h':{'data':'download.csv','T':'NRZ','M':[14,14,14],'S':[1,1,1],'MS':[14,14,1]},
     'WTH':{'data':'WTH.csv','T':'WetBulbCelsius','M':[12,12,12],'S':[1,1,1],'MS':[12,12,1]},
     'ECL':{'data':'ECL.csv','T':'MT_320','M':[321,321,321],'S':[1,1,1],'MS':[321,321,1]},
     'Solar':{'data':'solar_AL.csv','T':'POWER_136','M':[137,137,137],'S':[1,1,1],'MS':[137,137,1]},
