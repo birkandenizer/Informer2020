@@ -73,6 +73,7 @@ class Exp_Informer(Exp_Basic):
             'custom':Dataset_Custom,
             '4G':Dataset_Custom,
             '5G':Dataset_Custom,
+            '5G_a':Dataset_Custom,
             '5G_h':Dataset_Custom,
         }
         Data = data_dict[self.args.data]
@@ -129,7 +130,7 @@ class Exp_Informer(Exp_Basic):
         for i, (batch_x,batch_y,batch_x_mark,batch_y_mark) in enumerate(vali_loader):
             pred, true = self._process_one_batch(
                 vali_data, batch_x, batch_y, batch_x_mark, batch_y_mark)
-            loss = criterion(pred.detach().cpu().flatten(), true.detach().cpu().flatten())
+            loss = criterion(pred.detach().cpu(), true.detach().cpu())
             total_loss.append(loss)
         total_loss = np.average(total_loss)
         self.model.train()
@@ -167,18 +168,12 @@ class Exp_Informer(Exp_Basic):
                 model_optim.zero_grad()
                 pred, true = self._process_one_batch(
                     train_data, batch_x, batch_y, batch_x_mark, batch_y_mark)
-                print(f'type of pred: {type(pred)}, type of true: {type(true)}')
-                print(f'size of pred: {pred.size()}, size of true: {true.size()}')
-                print(pred)
-                print(true)
-
-                print('flatten')
-                pred = pred.flatten()
-                true = true.flatten()
-                print(f'type of pred: {type(pred)}, type of true: {type(true)}')
-                print(f'size of pred: {pred.size()}, size of true: {true.size()}')
-                print(pred)
-                print(true)
+                #print(f'type of pred: {type(pred)}, type of true: {type(true)}')
+                #print(f'size of pred: {pred.size()}, size of true: {true.size()}')
+                #print(f'dtype of pred: {pred.dtype}, dtype of true: {true.dtype}')
+                
+                #print(pred)
+                #print(true)
 
                 loss = criterion(pred, true)
                 train_loss.append(loss.item())
@@ -229,15 +224,17 @@ class Exp_Informer(Exp_Basic):
         for i, (batch_x,batch_y,batch_x_mark,batch_y_mark) in enumerate(test_loader):
             pred, true = self._process_one_batch(
                 test_data, batch_x, batch_y, batch_x_mark, batch_y_mark)
-            preds.append(pred.detach().cpu().numpy().flatten())
-            trues.append(true.detach().cpu().numpy().flatten())
+            preds.append(pred.detach().cpu().numpy())
+            trues.append(true.detach().cpu().numpy())
 
         preds = np.array(preds)
         trues = np.array(trues)
-        print('test shape:', preds.shape, trues.shape)
+        #print('dtype shape:', preds.dtype, trues.dtype)
+        #print('test shape:', preds.shape, trues.shape)
         preds = preds.reshape(-1, preds.shape[-2], preds.shape[-1])
         trues = trues.reshape(-1, trues.shape[-2], trues.shape[-1])
-        print('test shape:', preds.shape, trues.shape)
+        #print('dtype shape:', preds.dtype, trues.dtype)
+        #print('test shape:', preds.shape, trues.shape)
 
         # result save
         folder_path = './results/' + setting +'/'
@@ -247,8 +244,8 @@ class Exp_Informer(Exp_Basic):
         mae, mse, rmse, mape, mspe = metric(preds, trues)
         print('rmse:{}, mae:{}, mse:{}'.format(rmse, mae, mse))
 
-        #acc, f1 = classification_metric(preds, trues)
-        #print('acc:{}, f1:{}'.format(acc, f1))
+        """ acc, f1 = classification_metric(preds, trues)
+        print('acc:{}, f1:{}'.format(acc, f1)) """
 
         np.save(folder_path+'metrics.npy', np.array([mae, mse, rmse, mape, mspe]))
         np.save(folder_path+'pred.npy', preds)
@@ -286,8 +283,12 @@ class Exp_Informer(Exp_Basic):
         return
 
     def _process_one_batch(self, dataset_object, batch_x, batch_y, batch_x_mark, batch_y_mark):
+        print('dtype batch_y:', batch_y.dtype)
+        print('shape batch_y:', batch_y.shape)
         batch_x = batch_x.float().to(self.device)
         batch_y = batch_y.float()
+        print('dtype batch_y:', batch_y.dtype)
+        print('shape batch_y:', batch_y.shape)
 
         batch_x_mark = batch_x_mark.float().to(self.device)
         batch_y_mark = batch_y_mark.float().to(self.device)

@@ -63,8 +63,6 @@ class Informer(nn.Module):
         # self.end_conv1 = nn.Conv1d(in_channels=label_len+out_len, out_channels=out_len, kernel_size=1, bias=True)
         # self.end_conv2 = nn.Conv1d(in_channels=d_model, out_channels=c_out, kernel_size=1, bias=True)
         self.projection = nn.Linear(d_model, c_out, bias=True)
-        self.logsoftmax = nn.LogSoftmax(dim=1)
-        self.softmax = nn.Softmax(dim=1)
         
     def forward(self, x_enc, x_mark_enc, x_dec, x_mark_dec, 
                 enc_self_mask=None, dec_self_mask=None, dec_enc_mask=None):
@@ -74,11 +72,7 @@ class Informer(nn.Module):
         dec_out = self.dec_embedding(x_dec, x_mark_dec)
         dec_out = self.decoder(dec_out, enc_out, x_mask=dec_self_mask, cross_mask=dec_enc_mask)
         dec_out = self.projection(dec_out)
-        #print('apply LogSoftmax')
-        #dec_out = self.logsoftmax(dec_out)
-        
-        #print('apply softmax')
-        #dec_out = self.softmax(dec_out)
+        #print(f'type of dec_out: {type(dec_out)}, size of dec_out: {dec_out.size()}')
         
         # dec_out = self.end_conv1(dec_out)
         # dec_out = self.end_conv2(dec_out.transpose(2,1)).transpose(1,2)
@@ -91,7 +85,7 @@ class InformerC(nn.Module):
     def __init__(self, enc_in, dec_in, c_out, seq_len, label_len, out_len, 
                 factor=5, d_model=512, n_heads=8, e_layers=3, d_layers=2, d_ff=512, 
                 dropout=0.0, attn='prob', embed='fixed', freq='h', activation='gelu', 
-                output_attention = False, distil=True, mix=True,
+                output_attention = False, distil=True, mix=True, batch_size=32,
                 device=torch.device('cuda:0')):
         super(InformerC, self).__init__()
         self.pred_len = out_len
@@ -122,34 +116,66 @@ class InformerC(nn.Module):
             ] if distil else None,
             norm_layer=torch.nn.LayerNorm(d_model)
         )
-        embedding_dim = d_model
-        max_len = 32 # batch size is 32, token lenght of decoder was 48
-        in_features = embedding_dim * max_len
-        NUM_LABELS = 2
-        self.dense = nn.Linear(in_features, NUM_LABELS, bias=True)
+        # Decoder
+        self.decoder = Decoder(
+            [
+                DecoderLayer(
+                    AttentionLayer(Attn(True, factor, attention_dropout=dropout, output_attention=False), 
+                                d_model, n_heads, mix=mix),
+                    AttentionLayer(FullAttention(False, factor, attention_dropout=dropout, output_attention=False), 
+                                d_model, n_heads, mix=False),
+                    d_model,
+                    d_ff,
+                    dropout=dropout,
+                    activation=activation,
+                )
+                for l in range(d_layers)
+            ],
+            norm_layer=torch.nn.LayerNorm(d_model)
+        )
+        """ max_len = 32 # batch size is 32, token lenght of decoder was 48
+        # input 48x16384 (label, 512x32)
+        in_features = d_model * batch_size # 512 x 32 """
+        
+        NUM_LABELS = 1
+        #self.projection = nn.Linear(d_model, c_out, bias=True)
+        self.projection = nn.Linear(d_model, NUM_LABELS, bias=True)
+
         self.logsoftmax = nn.LogSoftmax(dim=1)
         self.softmax = nn.Softmax(dim=1)
         
     def forward(self, x_enc, x_mark_enc, x_dec, x_mark_dec, 
                 enc_self_mask=None, dec_self_mask=None, dec_enc_mask=None):
         enc_out = self.enc_embedding(x_enc, x_mark_enc)
-        enc_out, _ = self.encoder(enc_out, attn_mask=enc_self_mask)
+        enc_out, attns = self.encoder(enc_out, attn_mask=enc_self_mask)
 
-        enc_out = enc_out.reshape(enc_out.shape[1], -1)
+        dec_out = self.dec_embedding(x_dec, x_mark_dec)
+        dec_out = self.decoder(dec_out, enc_out, x_mask=dec_self_mask, cross_mask=dec_enc_mask)
+        dec_out = self.projection(dec_out)
+        print(f'type of dec_out: {type(dec_out)}, size of dec_out: {dec_out.size()}')
+    
+        #print('dec_out after projection')
+        #print(dec_out)
 
-        out = self.dense(enc_out)
-        print('out after dense')
-        print(out)
+        dec_out = dec_out[:,-self.pred_len:,:]
+        print(f'type of dec_out: {type(dec_out)}, size of dec_out: {dec_out.size()}')
+        #print('dec_out after projection')
+        #print(dec_out)
 
         #print('apply LogSoftmax')
         #out = self.logsoftmax(out)
         print('apply softmax')
-        out = self.softmax(out)
-        print(out)
+        out = self.softmax(dec_out)
+        print(f'type of out: {type(out)}, size of out: {out.size()}')
+        #print('out')
+        #print(out)
 
+        print('apply torch.max')
         values, indices = torch.max(out, dim=1, keepdim=True)
         #preds = torch.argmax(out, 1)
-        print(values)
+        print(f'type of values: {type(values)}, size of values: {values.size()}')
+        #print('values')
+        #print(values)
 
         return values
 
