@@ -283,12 +283,12 @@ class Exp_Informer(Exp_Basic):
         return
 
     def _process_one_batch(self, dataset_object, batch_x, batch_y, batch_x_mark, batch_y_mark):
-        print('dtype batch_y:', batch_y.dtype)
-        print('shape batch_y:', batch_y.shape)
+        #print('dtype batch_y:', batch_y.dtype)
+        #print('shape batch_y:', batch_y.shape)
         batch_x = batch_x.float().to(self.device)
         batch_y = batch_y.float()
-        print('dtype batch_y:', batch_y.dtype)
-        print('shape batch_y:', batch_y.shape)
+        #print('dtype batch_y:', batch_y.dtype)
+        #print('shape batch_y:', batch_y.shape)
 
         batch_x_mark = batch_x_mark.float().to(self.device)
         batch_y_mark = batch_y_mark.float().to(self.device)
