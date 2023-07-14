@@ -74,7 +74,8 @@ class Exp_Informer(Exp_Basic):
             '4G':Dataset_Custom,
             '5G':Dataset_Custom,
             '5G_a':Dataset_Custom,
-            '5G_h':Dataset_Custom,
+            '5G_b':Dataset_Custom,
+            '5G_c':Dataset_Custom,
         }
         Data = data_dict[self.args.data]
         timeenc = 0 if args.embed!='timeF' else 1
