@@ -76,7 +76,7 @@ data_parser = {
     '4G':{'data':'MM15.csv','T':'bandwidth','M':[7,7,7],'S':[1,1,1],'MS':[7,7,1]},
     '5G':{'data':'download.csv','T':'DL_bitrate','M':[10,10,10],'S':[1,1,1],'MS':[10,10,1]},
     '5G_a':{'data':'ds-captn-schwentine-5G-selected.csv','T':'lte.lCqi','M':[8,8,8],'S':[1,1,1],'MS':[8,8,1]},
-    '5G_b':{'data':'berlin.csv','T':'datarate','M':[40,40,40],'S':[1,1,1],'MS':[40,40,1]},
+    '5G_b':{'data':'berlin-upload.csv','T':'datarate','M':[30,30,30],'S':[1,1,1],'MS':[30,30,1]},
     '5G_c':{'data':'download.csv','T':'CellIDChange_0','M':[17,17,17],'S':[1,1,1],'MS':[17,17,1]},
     'WTH':{'data':'WTH.csv','T':'WetBulbCelsius','M':[12,12,12],'S':[1,1,1],'MS':[12,12,1]},
     'ECL':{'data':'ECL.csv','T':'MT_320','M':[321,321,321],'S':[1,1,1],'MS':[321,321,1]},
