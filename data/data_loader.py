@@ -220,12 +220,12 @@ class Dataset_Custom(Dataset):
         self.__read_data__()
 
     def __read_data__(self):
-        self.scaler = StandardScaler()
-        print('Using StandardScaler')
+        #self.scaler = StandardScaler()
+        #print('Using StandardScaler')
         #self.scaler = MinMaxScaler()
         #print('Using MinMaxScaler')
-        #self.scaler = MinMaxScalerv2()
-        #print('Using MinMaxScalerv2')
+        self.scaler = MinMaxScalerv2()
+        print('Using MinMaxScalerv2')
         df_raw = pd.read_csv(os.path.join(self.root_path,
                                           self.data_path))
         '''
@@ -323,10 +323,10 @@ class Dataset_Pred(Dataset):
         self.__read_data__()
 
     def __read_data__(self):
-        self.scaler = StandardScaler()
-        print('Using StandardScaler')
-        #self.scaler = MinMaxScalerv2()
-        #print('Using MinMaxScalerv2')
+        #self.scaler = StandardScaler()
+        #print('Using StandardScaler')
+        self.scaler = MinMaxScalerv2()
+        print('Using MinMaxScalerv2')
         df_raw = pd.read_csv(os.path.join(self.root_path,
                                           self.data_path))
         '''
