@@ -95,6 +95,7 @@ class Exp_Informer(Exp_Basic):
             features=args.features,
             target=args.target,
             inverse=args.inverse,
+            scaler=args.scaler,
             timeenc=timeenc,
             freq=freq,
             cols=args.cols
@@ -114,9 +115,14 @@ class Exp_Informer(Exp_Basic):
         return model_optim
     
     def _select_criterion(self):
-        if self.args.model=='informer':
+        if self.args.loss=='mse':
             print('model informer - MSELoss')
             criterion =  nn.MSELoss()
+
+        if self.args.loss=='l1':
+            print('model informer - L1Loss')
+            criterion = nn.L1Loss()
+        
         if self.args.model=='informerc':
             print('model informerc - CrossEntropyLoss')
             criterion = nn.CrossEntropyLoss()

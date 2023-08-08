@@ -188,7 +188,7 @@ class Dataset_ETT_minute(Dataset):
 class Dataset_Custom(Dataset):
     def __init__(self, root_path, flag='train', size=None, 
                  features='S', data_path='ETTh1.csv', 
-                 target='OT', scale=True, inverse=False, timeenc=0, freq='h', cols=None):
+                 target='OT', scale=True, inverse=False, scaler='standard', timeenc=0, freq='h', cols=None):
         print('Using Dataset_Custom')
         # size [seq_len, label_len, pred_len]
         # info
@@ -211,6 +211,7 @@ class Dataset_Custom(Dataset):
         self.features = features
         self.target = target
         self.scale = scale
+        self.scaler = scaler
         self.inverse = inverse
         self.timeenc = timeenc
         self.freq = freq
@@ -220,12 +221,12 @@ class Dataset_Custom(Dataset):
         self.__read_data__()
 
     def __read_data__(self):
-        #self.scaler = StandardScaler()
-        #print('Using StandardScaler')
-        #self.scaler = MinMaxScaler()
-        #print('Using MinMaxScaler')
-        self.scaler = MinMaxScalerv2()
-        print('Using MinMaxScalerv2')
+        if self.scaler =='standard':
+            print('Using StandardScaler')
+            self.scaler = StandardScaler()
+        if self.scaler =='minmax':
+            self.scaler = MinMaxScalerv2()
+            print('Using MinMaxScalerv2')
         df_raw = pd.read_csv(os.path.join(self.root_path,
                                           self.data_path))
         '''
@@ -296,7 +297,7 @@ class Dataset_Custom(Dataset):
 class Dataset_Pred(Dataset):
     def __init__(self, root_path, flag='pred', size=None, 
                  features='S', data_path='ETTh1.csv', 
-                 target='OT', scale=True, inverse=False, timeenc=0, freq='15min', cols=None):
+                 target='OT', scale=True, inverse=False, scaler='standard', timeenc=0, freq='15min', cols=None):
         print('Using Dataset_Pred')
         # size [seq_len, label_len, pred_len]
         # info
@@ -314,6 +315,7 @@ class Dataset_Pred(Dataset):
         self.features = features
         self.target = target
         self.scale = scale
+        self.scaler = scaler
         self.inverse = inverse
         self.timeenc = timeenc
         self.freq = freq
@@ -323,10 +325,12 @@ class Dataset_Pred(Dataset):
         self.__read_data__()
 
     def __read_data__(self):
-        #self.scaler = StandardScaler()
-        #print('Using StandardScaler')
-        self.scaler = MinMaxScalerv2()
-        print('Using MinMaxScalerv2')
+        if self.scaler =='standard':
+            print('Using StandardScaler')
+            self.scaler = StandardScaler()
+        if self.scaler =='minmax':
+            self.scaler = MinMaxScalerv2()
+            print('Using MinMaxScalerv2')
         df_raw = pd.read_csv(os.path.join(self.root_path,
                                           self.data_path))
         '''
