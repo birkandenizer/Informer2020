@@ -5,3 +5,4 @@ scikit_learn
 torch
 nvitop
 pyarrow
+seaborn

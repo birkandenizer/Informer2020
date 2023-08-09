@@ -74,7 +74,7 @@ data_parser = {
     'ETTh2':{'data':'ETTh2.csv','T':'OT','M':[7,7,7],'S':[1,1,1],'MS':[7,7,1]},
     'ETTm1':{'data':'ETTm1.csv','T':'OT','M':[7,7,7],'S':[1,1,1],'MS':[7,7,1]},
     'ETTm2':{'data':'ETTm2.csv','T':'OT','M':[7,7,7],'S':[1,1,1],'MS':[7,7,1]},
-    '4G':{'data':'MM15.csv','T':'bandwidth','M':[8,8,8],'S':[1,1,1],'MS':[8,8,1]},
+    '4G':{'data':'TT7.csv','T':'bandwidth','M':[8,8,8],'S':[1,1,1],'MS':[8,8,1]},
     '5G':{'data':'download.csv','T':'DL_bitrate','M':[9,9,9],'S':[1,1,1],'MS':[9,9,1]},
     '5G_a':{'data':'ds-captn-schwentine-5G-selected.csv','T':'lte.lCqi','M':[8,8,8],'S':[1,1,1],'MS':[8,8,1]},
     '5G_b':{'data':'berlin-upload.csv','T':'datarate','M':[30,30,30],'S':[1,1,1],'MS':[30,30,1]},
