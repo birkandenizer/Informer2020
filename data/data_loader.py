@@ -4,9 +4,9 @@ import pandas as pd
 
 import torch
 from torch.utils.data import Dataset, DataLoader
-# from sklearn.preprocessing import StandardScaler
+#from sklearn.preprocessing import StandardScaler, MinMaxScaler
 
-from utils.tools import StandardScaler, MinMaxScaler, MinMaxScalerv2
+from utils.tools import StandardScaler, MinMaxScaler, MinMaxScalerv3
 from utils.timefeatures import time_features
 
 import warnings
@@ -224,9 +224,11 @@ class Dataset_Custom(Dataset):
         if self.scaler =='standard':
             print('Using StandardScaler')
             self.scaler = StandardScaler()
+            self.label_scaler = StandardScaler()
         if self.scaler =='minmax':
-            self.scaler = MinMaxScalerv2()
-            print('Using MinMaxScalerv2')
+            print('Using MinMaxScaler')
+            self.scaler = MinMaxScaler()
+            self.label_scaler = MinMaxScaler()
         df_raw = pd.read_csv(os.path.join(self.root_path,
                                           self.data_path))
         '''
@@ -240,7 +242,7 @@ class Dataset_Custom(Dataset):
             cols = list(df_raw.columns); cols.remove(self.target); cols.remove('date')
         df_raw = df_raw[['date']+cols+[self.target]]
 
-        num_train = int(len(df_raw)*0.7)
+        num_train = int(len(df_raw)*0.6)
         num_test = int(len(df_raw)*0.2)
         num_vali = len(df_raw) - num_train - num_test
         border1s = [0, num_train-self.seq_len, len(df_raw)-num_test-self.seq_len]
@@ -256,10 +258,18 @@ class Dataset_Custom(Dataset):
 
         if self.scale:
             train_data = df_data[border1s[0]:border2s[0]]
+            #train_data_label = df_raw[[self.target]][border1s[0]:border2s[0]]
+            
             self.scaler.fit(train_data.values)
+            #self.label_scaler.fit(train_data_label.values)
+            #print(f'train_data_label.values.shape: {train_data_label.values.shape}')
+            
             data = self.scaler.transform(df_data.values)
         else:
             data = df_data.values
+        #print(f'data: {data.shape}')
+        #print(f'train_data.values: {train_data.values.shape}')
+        #print(f'df_data.values: {df_data.values.shape}')
             
         df_stamp = df_raw[['date']][border1:border2]
         df_stamp['date'] = pd.to_datetime(df_stamp.date)
@@ -270,6 +280,7 @@ class Dataset_Custom(Dataset):
             self.data_y = df_data.values[border1:border2]
         else:
             self.data_y = data[border1:border2]
+        #print(f'self.data_y: {self.data_y.shape}')
         self.data_stamp = data_stamp
     
     def __getitem__(self, index):
@@ -283,6 +294,7 @@ class Dataset_Custom(Dataset):
             seq_y = np.concatenate([self.data_x[r_begin:r_begin+self.label_len], self.data_y[r_begin+self.label_len:r_end]], 0)
         else:
             seq_y = self.data_y[r_begin:r_end]
+        #print(f'seq_y: {seq_y.shape}')
         seq_x_mark = self.data_stamp[s_begin:s_end]
         seq_y_mark = self.data_stamp[r_begin:r_end]
 
@@ -293,6 +305,8 @@ class Dataset_Custom(Dataset):
 
     def inverse_transform(self, data):
         return self.scaler.inverse_transform(data)
+        return self.label_scaler.inverse_transform(data)
+        return torch.from_numpy(self.label_scaler.inverse_transform(data.detach().cpu().numpy()))
 
 class Dataset_Pred(Dataset):
     def __init__(self, root_path, flag='pred', size=None, 
@@ -329,8 +343,9 @@ class Dataset_Pred(Dataset):
             print('Using StandardScaler')
             self.scaler = StandardScaler()
         if self.scaler =='minmax':
-            self.scaler = MinMaxScalerv2()
-            print('Using MinMaxScalerv2')
+            print('Using MinMaxScaler')
+            self.scaler = MinMaxScaler()
+            #self.label_scaler = MinMaxScaler()
         df_raw = pd.read_csv(os.path.join(self.root_path,
                                           self.data_path))
         '''
@@ -353,7 +368,11 @@ class Dataset_Pred(Dataset):
             df_data = df_raw[[self.target]]
 
         if self.scale:
+            #df_data_label = df_raw[[self.target]]
+
             self.scaler.fit(df_data.values)
+            #self.label_scaler.fit(df_data_label.values)
+
             data = self.scaler.transform(df_data.values)
         else:
             data = df_data.values
@@ -394,3 +413,8 @@ class Dataset_Pred(Dataset):
 
     def inverse_transform(self, data):
         return self.scaler.inverse_transform(data)
+        #return self.label_scaler.inverse_transform(data)
+
+        n_data = data.detach().cpu().numpy()
+        i_data = self.scaler.inverse_transform(n_data)
+        return torch.from_numpy(i_data)

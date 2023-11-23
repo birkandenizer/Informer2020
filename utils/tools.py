@@ -1,5 +1,6 @@
 import numpy as np
 import torch
+from sklearn.preprocessing import MinMaxScaler as SklearnMinMaxScaler
 
 def adjust_learning_rate(optimizer, epoch, args):
     # lr = args.learning_rate * (0.2 ** (epoch // 2))
@@ -78,32 +79,6 @@ class StandardScaler():
 class MinMaxScaler():
     def __init__(self, feature_range=(0, 1)):
         self.feature_range = feature_range
-        self.min_value = 0.
-        self.max_value = 1.
-
-    def fit(self, data):
-        self.min_value = data.min(0)
-        self.max_value = data.max(0)
-
-    def transform(self, data):
-        min_value = torch.from_numpy(self.min_value).type_as(data).to(data.device) if torch.is_tensor(data) else self.min_value
-        max_value = torch.from_numpy(self.max_value).type_as(data).to(data.device) if torch.is_tensor(data) else self.max_value
-        scaled_data = (data - min_value) / (max_value - min_value)
-        #scaled_data = scaled_data * (self.feature_range[1] - self.feature_range[0]) + self.feature_range[0]
-        return scaled_data
-
-    def inverse_transform(self, scaled_data):
-        min_value = torch.from_numpy(self.min_value).type_as(scaled_data).to(scaled_data.device) if torch.is_tensor(scaled_data) else self.min_value
-        max_value = torch.from_numpy(self.max_value).type_as(scaled_data).to(scaled_data.device) if torch.is_tensor(scaled_data) else self.max_value
-
-        #unscaled_data = (scaled_data - self.feature_range[0]) / (self.feature_range[1] - self.feature_range[0])
-        unscaled_data = scaled_data * (max_value - min_value) + min_value
-        return unscaled_data
-
-
-class MinMaxScalerv2():
-    def __init__(self, feature_range=(0, 1)):
-        self.feature_range = feature_range
         self.data_min = None
         self.data_max = None
 
@@ -133,3 +108,42 @@ class MinMaxScalerv2():
         unscaled_data = (scaled_data - self.feature_range[0]) / (self.feature_range[1] - self.feature_range[0])
         unscaled_data = unscaled_data * (data_max - data_min) + data_min
         return unscaled_data
+    
+class MinMaxScalerv3:
+    def __init__(self, feature_range=(0, 1)):
+        self.feature_range = feature_range
+        self.scaler = SklearnMinMaxScaler(feature_range=feature_range)
+
+    def fit(self, data):
+        if isinstance(data, np.ndarray):
+            self.scaler.fit(data)
+        elif torch.is_tensor(data):
+            self.scaler.fit(data.detach().cpu().numpy())
+        else:
+            raise ValueError("Unsupported data type. Input must be a NumPy array or PyTorch tensor.")
+
+    def transform(self, data):
+        if isinstance(data, np.ndarray):
+            return self.scaler.transform(data)
+        elif torch.is_tensor(data):
+            return torch.from_numpy(self.scaler.transform(data.detach().cpu().numpy())).to(data.device)
+        else:
+            raise ValueError("Unsupported data type. Input must be a NumPy array or PyTorch tensor.")
+
+    def fit_transform(self, data):
+        if isinstance(data, np.ndarray):
+            return self.scaler.fit_transform(data)
+        elif torch.is_tensor(data):
+            return torch.from_numpy(self.scaler.fit_transform(data.detach().cpu().numpy())).to(data.device)
+        else:
+            raise ValueError("Unsupported data type. Input must be a NumPy array or PyTorch tensor.")
+
+    def inverse_transform(self, data):
+        if isinstance(data, np.ndarray):
+            print('np.ndarray')
+            return self.scaler.inverse_transform(data)
+        elif torch.is_tensor(data):
+            print('torch.is_tensor')
+            return torch.from_numpy(self.scaler.inverse_transform(data.detach().cpu().numpy())).to(data.device)
+        else:
+            raise ValueError("Unsupported data type. Input must be a NumPy array or PyTorch tensor.")

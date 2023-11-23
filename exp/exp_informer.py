@@ -7,6 +7,7 @@ from utils.metrics import metric, classification_metric, FocalLoss
 from torchvision.ops import sigmoid_focal_loss
 
 import numpy as np
+import pandas as pd
 
 import torch
 import torch.nn as nn
@@ -15,6 +16,7 @@ from torch.utils.data import DataLoader
 
 import os
 import time
+import wandb
 
 import warnings
 warnings.filterwarnings('ignore')
@@ -71,11 +73,11 @@ class Exp_Informer(Exp_Basic):
             'ECL':Dataset_Custom,
             'Solar':Dataset_Custom,
             'custom':Dataset_Custom,
-            '4G':Dataset_Custom,
-            '5G':Dataset_Custom,
-            '5G_a':Dataset_Custom,
-            '5G_b':Dataset_Custom,
-            '5G_c':Dataset_Custom,
+            '4G_mm15':Dataset_Custom,
+            '4G_tt7':Dataset_Custom,
+            '4G_bus':Dataset_Custom,
+            '5G_beyond':Dataset_Custom,
+            '5G_berlin':Dataset_Custom,
         }
         Data = data_dict[self.args.data]
         timeenc = 0 if args.embed!='timeF' else 1
@@ -138,8 +140,10 @@ class Exp_Informer(Exp_Basic):
             pred, true = self._process_one_batch(
                 vali_data, batch_x, batch_y, batch_x_mark, batch_y_mark)
             loss = criterion(pred.detach().cpu(), true.detach().cpu())
+            wandb.log({"val_loss": loss})
             total_loss.append(loss)
         total_loss = np.average(total_loss)
+        wandb.log({"val_total_loss": total_loss})
         self.model.train()
         return total_loss
 
@@ -183,6 +187,7 @@ class Exp_Informer(Exp_Basic):
                 #print(true)
 
                 loss = criterion(pred, true)
+                wandb.log({"train_loss": loss})
                 train_loss.append(loss.item())
                 
                 if (i+1) % 100==0:
@@ -220,7 +225,7 @@ class Exp_Informer(Exp_Basic):
         
         return self.model
 
-    def test(self, setting):
+    def test(self, setting, run):
         test_data, test_loader = self._get_data(flag='test')
         
         self.model.eval()
@@ -236,12 +241,35 @@ class Exp_Informer(Exp_Basic):
 
         preds = np.array(preds)
         trues = np.array(trues)
-        #print('dtype shape:', preds.dtype, trues.dtype)
-        #print('test shape:', preds.shape, trues.shape)
+        
+        print('dtype:', preds.dtype, trues.dtype)
+        print('shape:', preds.shape, trues.shape)
+        #preds.shape[-1]    
+        #preds.shape[-2]
         preds = preds.reshape(-1, preds.shape[-2], preds.shape[-1])
         trues = trues.reshape(-1, trues.shape[-2], trues.shape[-1])
-        #print('dtype shape:', preds.dtype, trues.dtype)
-        #print('test shape:', preds.shape, trues.shape)
+        print('reshape dtype:', preds.dtype, trues.dtype)
+        print('reshape shape:', preds.shape, trues.shape)
+        #print('preds[0] shape and value:', preds[0].shape, preds[0])
+
+        """ if self.args.inverse:
+            inverse_preds = []
+            inverse_trues = []
+
+            for pred in preds:
+                inverse_preds.append(test_data.inverse_transform(pred))
+
+            for true in trues:
+                inverse_trues.append(test_data.inverse_transform(true))
+
+            inverse_preds = np.array(inverse_preds)
+            inverse_trues = np.array(inverse_trues)
+
+            print('inverse dtype:', inverse_preds.dtype, inverse_trues.dtype)
+            print('inverse shape:', inverse_preds.shape, inverse_trues.shape)
+
+            preds = inverse_preds
+            trues = inverse_trues """
 
         # result save
         folder_path = './results/' + setting +'/'
@@ -249,14 +277,45 @@ class Exp_Informer(Exp_Basic):
             os.makedirs(folder_path)
 
         mae, mse, rmse, mape, mspe = metric(preds, trues)
-        print('rmse:{}, mae:{}, mse:{}'.format(rmse, mae, mse))
-
-        """ acc, f1 = classification_metric(preds, trues)
-        print('acc:{}, f1:{}'.format(acc, f1)) """
+        m_n='BandFormer'
+        print(f'{m_n} rmse:{rmse}, mae:{mae}, mse:{mse}')
+        wandb.log({m_n+" rmse": rmse, m_n+" mae": mae, m_n+" mse": mse})
 
         np.save(folder_path+'metrics.npy', np.array([mae, mse, rmse, mape, mspe]))
         np.save(folder_path+'pred.npy', preds)
         np.save(folder_path+'true.npy', trues)
+
+        artifact = wandb.Artifact(name="informer-predictions", type="data")
+        artifact.add_file(local_path=folder_path+'pred.npy')
+        run.log_artifact(artifact)
+
+        artifact = wandb.Artifact(name="informer-labels", type="data")
+        artifact.add_file(local_path=folder_path+'true.npy')
+        run.log_artifact(artifact)
+
+        if False:#self.args.pred_len == 1:
+            shift_by = 1
+            span = 8
+
+            df = pd.DataFrame({'trues': trues.flatten(), 'preds': preds.flatten()})
+            df['shifted'] = df['trues'].shift(shift_by, fill_value=0)
+            #df['sma']     = df['trues'].rolling(span).mean()
+            df['ewma8']   = df['trues'].ewm(span=span, adjust=True).mean()
+
+            mae, mse, rmse, mape, mspe = metric(df['shifted'].to_numpy(), df['trues'].to_numpy())
+            m_n='Shifted'
+            print(f'{m_n} rmse:{rmse}, mae:{mae}, mse:{mse}')
+            wandb.log({m_n+" rmse": rmse, m_n+" mae": mae, m_n+" mse": mse})
+
+            """ mae, mse, rmse, mape, mspe = metric(df['sma'].to_numpy(), trues)
+            m_n='SMA'
+            print(f'{m_n} rmse:{rmse}, mae:{mae}, mse:{mse}')
+            wandb.log({m_n+" rmse": rmse, m_n+" mae": mae, m_n+" mse": mse}) """
+
+            mae, mse, rmse, mape, mspe = metric(df['ewma8'].to_numpy(), df['trues'].to_numpy())
+            m_n='EWMA8'
+            print(f'{m_n} rmse:{rmse}, mae:{mae}, mse:{mse}')
+            wandb.log({m_n+" rmse": rmse, m_n+" mae": mae, m_n+" mse": mse})
 
         return
 
@@ -290,12 +349,12 @@ class Exp_Informer(Exp_Basic):
         return
 
     def _process_one_batch(self, dataset_object, batch_x, batch_y, batch_x_mark, batch_y_mark):
-        #print('dtype batch_y:', batch_y.dtype)
-        #print('shape batch_y:', batch_y.shape)
         batch_x = batch_x.float().to(self.device)
+        #print(f'batch_x dtype: {batch_x.dtype}, shape: {batch_x.shape}')
+        #batch_x dtype: torch.float32, shape: torch.Size([32, 5, 8])
         batch_y = batch_y.float()
-        #print('dtype batch_y:', batch_y.dtype)
-        #print('shape batch_y:', batch_y.shape)
+        #print(f'batch_y before dtype: {batch_y.dtype}, shape: {batch_y.shape}')
+        #batch_y before dtype: torch.float32, shape: torch.Size([32, 6, 8])
 
         batch_x_mark = batch_x_mark.float().to(self.device)
         batch_y_mark = batch_y_mark.float().to(self.device)
@@ -318,9 +377,18 @@ class Exp_Informer(Exp_Basic):
                 outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)[0]
             else:
                 outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
+        #print(f'output.size: {outputs.size()}')
+        #print(outputs)
         if self.args.inverse:
             outputs = dataset_object.inverse_transform(outputs)
+            """ outputs_concat = []
+            for element in outputs:
+                outputs_concat.append(dataset_object.inverse_transform(element))
+            outputs = torch.cat(outputs_concat)
+            outputs_concat = [] """
         f_dim = -1 if self.args.features=='MS' else 0
         batch_y = batch_y[:,-self.args.pred_len:,f_dim:].to(self.device)
+        #print(f'batch_y after dtype: {batch_y.dtype}, shape: {batch_y.shape}')
+        #batch_y after dtype: torch.float32, shape: torch.Size([32, 1, 1])
 
         return outputs, batch_y

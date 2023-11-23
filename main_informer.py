@@ -1,6 +1,7 @@
 import argparse
 import os
 import torch
+import wandb
 
 from exp.exp_informer import Exp_Informer
 
@@ -74,11 +75,12 @@ data_parser = {
     'ETTh2':{'data':'ETTh2.csv','T':'OT','M':[7,7,7],'S':[1,1,1],'MS':[7,7,1]},
     'ETTm1':{'data':'ETTm1.csv','T':'OT','M':[7,7,7],'S':[1,1,1],'MS':[7,7,1]},
     'ETTm2':{'data':'ETTm2.csv','T':'OT','M':[7,7,7],'S':[1,1,1],'MS':[7,7,1]},
-    '4G':{'data':'car.csv','T':'DL_bitrate','M':[11,11,11],'S':[1,1,1],'MS':[11,11,1]},
-    '5G':{'data':'download.csv','T':'DL_bitrate','M':[11,11,11],'S':[1,1,1],'MS':[11,11,1]},
-    '5G_a':{'data':'ds-captn-schwentine-5G-selected.csv','T':'lte.lCqi','M':[8,8,8],'S':[1,1,1],'MS':[8,8,1]},
-    '5G_b':{'data':'consecutive_512_operator_1_pc_1.csv','T':'datarate','M':[9,9,9],'S':[1,1,1],'MS':[9,9,1]},
-    '5G_c':{'data':'download.csv','T':'CellIDChange_0','M':[17,17,17],'S':[1,1,1],'MS':[17,17,1]},
+    '4G_mm15':{'data':'MM15.csv','T':'bandwidth','M':[8,8,8],'S':[1,1,1],'MS':[8,8,1]}, # NYU-METS
+    '4G_tt7':{'data':'TT7.csv','T':'bandwidth','M':[8,8,8],'S':[1,1,1],'MS':[8,8,1]}, # NYU-METS
+    '4G_bus':{'data':'BUS_LINES.csv','T':'bandwidth','M':[8,8,8],'S':[1,1,1],'MS':[8,8,1]}, # NYU-METS
+    #'4G':{'data':'car.csv','T':'DL_bitrate','M':[11,11,11],'S':[1,1,1],'MS':[11,11,1]}, # Beyond4G
+    '5G_beyond':{'data':'Download-limited.csv','T':'DL_bitrate','M':[9,9,9],'S':[1,1,1],'MS':[9,9,1]}, #Beyond5G
+    '5G_berlin':{'data':'filtered_data_downlink_selected.csv','T':'datarate','M':[17,17,17],'S':[1,1,1],'MS':[17,17,1]}, # BerlinV2X
     'WTH':{'data':'WTH.csv','T':'WetBulbCelsius','M':[12,12,12],'S':[1,1,1],'MS':[12,12,1]},
     'ECL':{'data':'ECL.csv','T':'MT_320','M':[321,321,321],'S':[1,1,1],'MS':[321,321,1]},
     'Solar':{'data':'solar_AL.csv','T':'POWER_136','M':[137,137,137],'S':[1,1,1],'MS':[137,137,1]},
@@ -99,6 +101,11 @@ print(args)
 Exp = Exp_Informer
 
 for ii in range(args.itr):
+    
+    wandb.login()
+    
+    run = wandb.init(project="time-series-informer", config=args)
+
     # setting record of experiments
     setting = '{}_{}_ft{}_sl{}_ll{}_pl{}_dm{}_nh{}_el{}_dl{}_df{}_at{}_fc{}_eb{}_dt{}_mx{}_{}_{}'.format(args.model, args.data, args.features, 
                 args.seq_len, args.label_len, args.pred_len,
@@ -110,10 +117,12 @@ for ii in range(args.itr):
     exp.train(setting)
     
     print('>>>>>>>testing : {}<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<'.format(setting))
-    exp.test(setting)
+    exp.test(setting, run)
 
     if args.do_predict:
         print('>>>>>>>predicting : {}<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<'.format(setting))
         exp.predict(setting, True)
 
     torch.cuda.empty_cache()
+
+    wandb.finish()
