@@ -5,6 +5,8 @@ import wandb
 
 from exp.exp_informer import Exp_Informer
 
+from torchinfo import summary
+
 parser = argparse.ArgumentParser(description='[Informer] Long Sequences Forecasting')
 
 parser.add_argument('--model', type=str, required=True, default='informer',help='model of experiment, options: [informer, informerstack, informerlight(TBD)]')
@@ -48,6 +50,7 @@ parser.add_argument('--train_epochs', type=int, default=6, help='train epochs')
 parser.add_argument('--batch_size', type=int, default=32, help='batch size of train input data')
 parser.add_argument('--patience', type=int, default=3, help='early stopping patience')
 parser.add_argument('--learning_rate', type=float, default=0.0001, help='optimizer learning rate')
+parser.add_argument('--optimizer', type=str, default='adam', help='optimizer')
 parser.add_argument('--des', type=str, default='test',help='exp description')
 parser.add_argument('--loss', type=str, default='mse',help='loss function')
 parser.add_argument('--scaler', type=str, default='standard',help='feature scaler')
@@ -100,7 +103,7 @@ print(args)
 
 Exp = Exp_Informer
 
-for ii in range(args.itr):
+""" for ii in range(args.itr):
     
     wandb.login()
     
@@ -125,4 +128,88 @@ for ii in range(args.itr):
 
     torch.cuda.empty_cache()
 
-    wandb.finish()
+    wandb.finish() """
+
+sweep_configuration = {
+        'method': 'bayes', # grid, random, bayes
+        'name': 'sweep',
+        'metric': {
+            'goal': 'minimize',
+            'name': 'val_total_loss'}, # val_total_loss, val_loss
+        'early_terminate': {
+            'type': 'hyperband',
+            'min_iter': 3},
+        'parameters': {
+            'features': {'values': ['MS']},
+            'freq': {'values': ['s']},
+            'seq_len': {'values': [64]}, # 16, 32, 48, 64
+            'label_len': {'values': [32]}, # 4, 8, 16
+            'pred_len': {'values': [1]},
+
+            'd_model': {'values': [1024]}, # 256, 512, 1024, 2048
+            'n_heads': {'values': [8]}, # 4, 6, 8
+            'e_layers': {'values': [3]}, # 1, 2, 3
+            'd_layers': {'values': [1]}, # 1, 2, 3
+            'd_ff': {'values': [2048]}, #256, 512, 1024, 2048
+
+            'dropout': {'values': [0.05]},
+            #'dropout': {'min': 0.01, 'max': 0.1},
+            'attn': {'values': ['prob']}, # prob, full
+            'embed': {'values': ['timeF']}, # timeF, 'fixed', 'learned'
+            'activation': {'values': ['gelu']}, #'gelu', 'relu', 'LeakyReLU'??
+
+            'itr': {'values': [1]},
+            'train_epochs': {'values': [20]},
+            'batch_size': {'values': [32]},
+            'patience': {'values': [3]},
+            'learning_rate': {'values': [0.0001]}, 
+            #'learning_rate': {'min': 0.0001, 'max': 0.01},
+            'loss': {'values': ['mse']}, # l1
+            'scaler': {'values': ['standard']}, #'standard', 'minmax'
+            'optimizer': {'values': ['Adam']}, # 'Adam', 'AdamW'
+            #'lr_scheduler': {'values': ['StepLR', 'ReduceLROnPlateau']},
+        },
+        'run_cap' : 1000
+    }
+sweep_id = wandb.sweep(sweep=sweep_configuration, project='time-series-informer')
+
+def wandb_train(config=None):
+
+    for ii in range(args.itr):
+
+        wandb.login()
+    
+        run = wandb.init(config=args)
+        print(f'wandb config {wandb.config}')
+        print(f'args {args}')
+        #args = wandb.config
+
+        # setting record of experiments
+        setting = '{}_{}_ft{}_sl{}_ll{}_pl{}_dm{}_nh{}_el{}_dl{}_df{}_at{}_fc{}_eb{}_dt{}_mx{}_{}_{}'.format(wandb.config.model, wandb.config.data, wandb.config.features, 
+                    wandb.config.seq_len, wandb.config.label_len, wandb.config.pred_len,
+                    wandb.config.d_model, wandb.config.n_heads, wandb.config.e_layers, wandb.config.d_layers, wandb.config.d_ff, wandb.config.attn, wandb.config.factor, 
+                    wandb.config.embed, wandb.config.distil, wandb.config.mix, wandb.config.des, ii)
+        
+        print('wandb.config in experiment:')
+        print(wandb.config)
+
+        #exp = Exp(args) # set experiments
+        exp = Exp(wandb.config) # set experiments
+
+        summry_model = exp.model
+        batch_size = 16
+        #summary(summry_model, input_size=(batch_size, 1, 28, 28))
+        print(summary(summry_model, verbose=1))
+
+        print('>>>>>>>start training : {}>>>>>>>>>>>>>>>>>>>>>>>>>>'.format(setting))
+        exp.train(setting)
+        
+        print('>>>>>>>testing : {}<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<'.format(setting))
+        exp.test(setting, run)
+
+        torch.cuda.empty_cache()
+
+        wandb.finish()
+
+
+wandb.agent(sweep_id, function=wandb_train, count=1)
