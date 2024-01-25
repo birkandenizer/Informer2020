@@ -78,6 +78,7 @@ class Exp_Informer(Exp_Basic):
             '4G_bus':Dataset_Custom,
             '5G_beyond':Dataset_Custom,
             '5G_berlin':Dataset_Custom,
+            '5G_addix':Dataset_Custom,
         }
         Data = data_dict[self.args.data]
         timeenc = 0 if args.embed!='timeF' else 1
@@ -116,7 +117,7 @@ class Exp_Informer(Exp_Basic):
         if self.args.optimizer=='Adam':
             model_optim = optim.Adam(self.model.parameters(), lr=self.args.learning_rate)
 
-        if self.args.optimizer=='AdamW':
+        else: #self.args.optimizer=='AdamW'
             model_optim = optim.AdamW(self.model.parameters(), lr=self.args.learning_rate)
 
         return model_optim

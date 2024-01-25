@@ -14,14 +14,14 @@ parser.add_argument('--model', type=str, required=True, default='informer',help=
 parser.add_argument('--data', type=str, required=True, default='ETTh1', help='data')
 parser.add_argument('--root_path', type=str, default='./data/ETT/', help='root path of the data file')
 parser.add_argument('--data_path', type=str, default='ETTh1.csv', help='data file')    
-parser.add_argument('--features', type=str, default='M', help='forecasting task, options:[M, S, MS]; M:multivariate predict multivariate, S:univariate predict univariate, MS:multivariate predict univariate')
+parser.add_argument('--features', type=str, default='MS', help='forecasting task, options:[M, S, MS]; M:multivariate predict multivariate, S:univariate predict univariate, MS:multivariate predict univariate')
 parser.add_argument('--target', type=str, default='OT', help='target feature in S or MS task')
-parser.add_argument('--freq', type=str, default='h', help='freq for time features encoding, options:[s:secondly, t:minutely, h:hourly, d:daily, b:business days, w:weekly, m:monthly], you can also use more detailed freq like 15min or 3h')
+parser.add_argument('--freq', type=str, default='s', help='freq for time features encoding, options:[s:secondly, t:minutely, h:hourly, d:daily, b:business days, w:weekly, m:monthly], you can also use more detailed freq like 15min or 3h')
 parser.add_argument('--checkpoints', type=str, default='./checkpoints/', help='location of model checkpoints')
 
 parser.add_argument('--seq_len', type=int, default=96, help='input sequence length of Informer encoder')
 parser.add_argument('--label_len', type=int, default=48, help='start token length of Informer decoder')
-parser.add_argument('--pred_len', type=int, default=24, help='prediction sequence length')
+parser.add_argument('--pred_len', type=int, default=1, help='prediction sequence length')
 # Informer decoder input: concat[start token series(label_len), zero padding series(pred_len)]
 
 parser.add_argument('--enc_in', type=int, default=7, help='encoder input size')
@@ -45,8 +45,8 @@ parser.add_argument('--do_predict', action='store_true', help='whether to predic
 parser.add_argument('--mix', action='store_false', help='use mix attention in generative decoder', default=True)
 parser.add_argument('--cols', type=str, nargs='+', help='certain cols from the data files as the input features')
 parser.add_argument('--num_workers', type=int, default=0, help='data loader num workers')
-parser.add_argument('--itr', type=int, default=2, help='experiments times')
-parser.add_argument('--train_epochs', type=int, default=6, help='train epochs')
+parser.add_argument('--itr', type=int, default=1, help='experiments times')
+parser.add_argument('--train_epochs', type=int, default=20, help='train epochs')
 parser.add_argument('--batch_size', type=int, default=32, help='batch size of train input data')
 parser.add_argument('--patience', type=int, default=3, help='early stopping patience')
 parser.add_argument('--learning_rate', type=float, default=0.0001, help='optimizer learning rate')
@@ -84,6 +84,7 @@ data_parser = {
     #'4G':{'data':'car.csv','T':'DL_bitrate','M':[11,11,11],'S':[1,1,1],'MS':[11,11,1]}, # Beyond4G
     '5G_beyond':{'data':'Download-limited.csv','T':'DL_bitrate','M':[9,9,9],'S':[1,1,1],'MS':[9,9,1]}, #Beyond5G
     '5G_berlin':{'data':'filtered_data_downlink_selected.csv','T':'datarate','M':[17,17,17],'S':[1,1,1],'MS':[17,17,1]}, # BerlinV2X
+    '5G_addix':{'data':'kappa-selected-5G-D2-WAVELAB-2023-12-07T12-15.json.csv','T':'txbitspersecond','M':[12,12,12],'S':[1,1,1],'MS':[12,12,1]}, # ADDIX-Kappa
     'WTH':{'data':'WTH.csv','T':'WetBulbCelsius','M':[12,12,12],'S':[1,1,1],'MS':[12,12,1]},
     'ECL':{'data':'ECL.csv','T':'MT_320','M':[321,321,321],'S':[1,1,1],'MS':[321,321,1]},
     'Solar':{'data':'solar_AL.csv','T':'POWER_136','M':[137,137,137],'S':[1,1,1],'MS':[137,137,1]},
@@ -131,7 +132,7 @@ Exp = Exp_Informer
     wandb.finish() """
 
 sweep_configuration = {
-        'method': 'bayes', # grid, random, bayes
+        'method': 'grid', # grid, random, bayes
         'name': 'sweep',
         'metric': {
             'goal': 'minimize',
@@ -140,38 +141,38 @@ sweep_configuration = {
             'type': 'hyperband',
             'min_iter': 3},
         'parameters': {
-            'features': {'values': ['MS']},
-            'freq': {'values': ['s']},
-            'seq_len': {'values': [64]}, # 16, 32, 48, 64
-            'label_len': {'values': [32]}, # 4, 8, 16
-            'pred_len': {'values': [1]},
+            #'features': {'values': ['MS']},
+            #'freq': {'values': ['s']},
+            'seq_len': {'values': [16, (96)]}, # 16, 32, 48, 64, (96)
+            #'label_len': {'values': [2]}, # 4, 8, 16, (48)
+            #'pred_len': {'values': [1]},
 
-            'd_model': {'values': [1024]}, # 256, 512, 1024, 2048
-            'n_heads': {'values': [8]}, # 4, 6, 8
-            'e_layers': {'values': [3]}, # 1, 2, 3
-            'd_layers': {'values': [1]}, # 1, 2, 3
-            'd_ff': {'values': [2048]}, #256, 512, 1024, 2048
+            'd_model': {'values': [256, (512), 1024]}, # 256, (512), 1024, 2048
+            'n_heads': {'values': [6]}, # 4, 6, (8)
+            'e_layers': {'values': [3]}, # 1, (2), 3
+            'd_layers': {'values': [(1), 2, 3]}, # (1), 2, 3
+            'd_ff': {'values': [1024, (2048)]}, #256, 512, 1024, (2048)
 
             'dropout': {'values': [0.05]},
-            #'dropout': {'min': 0.01, 'max': 0.1},
-            'attn': {'values': ['prob']}, # prob, full
-            'embed': {'values': ['timeF']}, # timeF, 'fixed', 'learned'
-            'activation': {'values': ['gelu']}, #'gelu', 'relu', 'LeakyReLU'??
+            #'attn': {'values': ['prob']}, # prob, full
+            #'embed': {'values': ['timeF']}, # timeF, 'fixed', 'learned'
+            #'activation': {'values': ['gelu']}, #'gelu', 'relu', 'LeakyReLU'??
 
-            'itr': {'values': [1]},
-            'train_epochs': {'values': [20]},
-            'batch_size': {'values': [32]},
-            'patience': {'values': [3]},
-            'learning_rate': {'values': [0.0001]}, 
-            #'learning_rate': {'min': 0.0001, 'max': 0.01},
-            'loss': {'values': ['mse']}, # l1
-            'scaler': {'values': ['standard']}, #'standard', 'minmax'
-            'optimizer': {'values': ['Adam']}, # 'Adam', 'AdamW'
+            #'itr': {'values': [1]},
+            #'train_epochs': {'values': [20]},
+            #'batch_size': {'values': [32]},
+            #'patience': {'values': [3]},
+            'learning_rate': {'values': [(0.0001)]}, # 0.01, 0.001, (0.0001) 
+            #'loss': {'values': ['mse']}, # l1
+            #'scaler': {'values': ['standard']}, #'standard', 'minmax'
+            'optimizer': {'values': ['Adam', 'AdamW']}, # 'Adam', 'AdamW'
             #'lr_scheduler': {'values': ['StepLR', 'ReduceLROnPlateau']},
         },
         'run_cap' : 1000
     }
 sweep_id = wandb.sweep(sweep=sweep_configuration, project='time-series-informer')
+sweep_id = 'sebajyex'
+print(f'sweep_id {sweep_id}')
 
 def wandb_train(config=None):
 
@@ -179,27 +180,24 @@ def wandb_train(config=None):
 
         wandb.login()
     
-        run = wandb.init(config=args)
-        print(f'wandb config {wandb.config}')
-        print(f'args {args}')
-        #args = wandb.config
+        run = wandb.init(config=args, allow_val_change=True)
+        wandb.config.update({"label_len": wandb.config["seq_len"] // 2}, allow_val_change=True)
+        print(f'wandb.config {wandb.config}')
 
         # setting record of experiments
-        setting = '{}_{}_ft{}_sl{}_ll{}_pl{}_dm{}_nh{}_el{}_dl{}_df{}_at{}_fc{}_eb{}_dt{}_mx{}_{}_{}'.format(wandb.config.model, wandb.config.data, wandb.config.features, 
-                    wandb.config.seq_len, wandb.config.label_len, wandb.config.pred_len,
-                    wandb.config.d_model, wandb.config.n_heads, wandb.config.e_layers, wandb.config.d_layers, wandb.config.d_ff, wandb.config.attn, wandb.config.factor, 
-                    wandb.config.embed, wandb.config.distil, wandb.config.mix, wandb.config.des, ii)
+        setting = '{}_{}_ft{}_sl{}_ll{}_pl{}_dm{}_nh{}_el{}_dl{}_df{}_at{}_fc{}_eb{}_dt{}_mx{}_{}_{}'.format(
+            wandb.config.model, wandb.config.data, wandb.config.features,
+            wandb.config.seq_len, wandb.config.label_len, wandb.config.pred_len,
+            wandb.config.d_model, wandb.config.n_heads, wandb.config.e_layers, wandb.config.d_layers, wandb.config.d_ff, 
+            wandb.config.attn, wandb.config.factor, wandb.config.embed, wandb.config.distil, wandb.config.mix, wandb.config.des, ii)
         
-        print('wandb.config in experiment:')
-        print(wandb.config)
-
         #exp = Exp(args) # set experiments
         exp = Exp(wandb.config) # set experiments
 
-        summry_model = exp.model
-        batch_size = 16
-        #summary(summry_model, input_size=(batch_size, 1, 28, 28))
-        print(summary(summry_model, verbose=1))
+        summary_model = exp.model
+        batch_size = 32
+        #summary(summary_model, input_size=(batch_size, 1, 28, 28))
+        print(summary(summary_model, verbose=1))
 
         print('>>>>>>>start training : {}>>>>>>>>>>>>>>>>>>>>>>>>>>'.format(setting))
         exp.train(setting)
@@ -207,9 +205,10 @@ def wandb_train(config=None):
         print('>>>>>>>testing : {}<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<'.format(setting))
         exp.test(setting, run)
 
+        run.finish()
+        #wandb.finish()
+
         torch.cuda.empty_cache()
 
-        wandb.finish()
 
-
-wandb.agent(sweep_id, function=wandb_train, count=1)
+wandb.agent(sweep_id, function=wandb_train)
