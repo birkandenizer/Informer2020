@@ -14,11 +14,14 @@ def CORR(pred, true):
     d = np.sqrt(((true-true.mean(0))**2*(pred-pred.mean(0))**2).sum(0))
     return (u/d).mean(-1)
 
+def AE(pred, true):
+    return np.abs(pred-true)
+
 def MAE(pred, true):
-    return np.mean(np.abs(pred-true))
+    return np.mean(AE(pred, true))
 
 def MSE(pred, true):
-    return np.mean((pred-true)**2)
+    return np.mean(np.square(pred-true))
 
 def RMSE(pred, true):
     return np.sqrt(MSE(pred, true))
@@ -29,14 +32,17 @@ def MAPE(pred, true):
 def MSPE(pred, true):
     return np.mean(np.square((pred - true) / true))
 
+def STD(y_pred, y_true):
+    return np.std(y_true - y_pred)
+
 def metric(pred, true):
+    ae = AE(pred, true)
     mae = MAE(pred, true)
     mse = MSE(pred, true)
     rmse = RMSE(pred, true)
-    mape = MAPE(pred, true)
-    mspe = MSPE(pred, true)
-    
-    return mae,mse,rmse,mape,mspe
+    std = STD(pred, true)
+
+    return ae,mae,mse,rmse,std
 
 def classification_metric(pred, true):
     acc = accuracy_score(pred, true)

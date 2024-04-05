@@ -1,12 +1,17 @@
+import time
 import argparse
 import os
 import torch
 import wandb
+import numpy as np
+import random
 
 from exp.exp_informer import Exp_Informer
 
 from torchinfo import summary
 
+#torch.set_float32_matmul_precision('high') # “highest” (default), “high”, or “medium”
+print(torch.get_float32_matmul_precision())
 parser = argparse.ArgumentParser(description='[Informer] Long Sequences Forecasting')
 
 parser.add_argument('--model', type=str, required=True, default='informer',help='model of experiment, options: [informer, informerstack, informerlight(TBD)]')
@@ -46,7 +51,7 @@ parser.add_argument('--mix', action='store_false', help='use mix attention in ge
 parser.add_argument('--cols', type=str, nargs='+', help='certain cols from the data files as the input features')
 parser.add_argument('--num_workers', type=int, default=0, help='data loader num workers')
 parser.add_argument('--itr', type=int, default=1, help='experiments times')
-parser.add_argument('--train_epochs', type=int, default=20, help='train epochs')
+parser.add_argument('--train_epochs', type=int, default=6, help='train epochs')
 parser.add_argument('--batch_size', type=int, default=32, help='batch size of train input data')
 parser.add_argument('--patience', type=int, default=3, help='early stopping patience')
 parser.add_argument('--learning_rate', type=float, default=0.0001, help='optimizer learning rate')
@@ -78,13 +83,24 @@ data_parser = {
     'ETTh2':{'data':'ETTh2.csv','T':'OT','M':[7,7,7],'S':[1,1,1],'MS':[7,7,1]},
     'ETTm1':{'data':'ETTm1.csv','T':'OT','M':[7,7,7],'S':[1,1,1],'MS':[7,7,1]},
     'ETTm2':{'data':'ETTm2.csv','T':'OT','M':[7,7,7],'S':[1,1,1],'MS':[7,7,1]},
-    '4G_mm15':{'data':'MM15.csv','T':'bandwidth','M':[8,8,8],'S':[1,1,1],'MS':[8,8,1]}, # NYU-METS
+    'NYU-METS-MM15':{'data':'MM15.csv','T':'bandwidth','M':[8,8,8],'S':[1,1,1],'MS':[8,8,1]}, # NYU-METS
     '4G_tt7':{'data':'TT7.csv','T':'bandwidth','M':[8,8,8],'S':[1,1,1],'MS':[8,8,1]}, # NYU-METS
     '4G_bus':{'data':'BUS_LINES.csv','T':'bandwidth','M':[8,8,8],'S':[1,1,1],'MS':[8,8,1]}, # NYU-METS
     #'4G':{'data':'car.csv','T':'DL_bitrate','M':[11,11,11],'S':[1,1,1],'MS':[11,11,1]}, # Beyond4G
-    '5G_beyond':{'data':'Download-limited.csv','T':'DL_bitrate','M':[9,9,9],'S':[1,1,1],'MS':[9,9,1]}, #Beyond5G
-    '5G_berlin':{'data':'filtered_data_downlink_selected.csv','T':'datarate','M':[17,17,17],'S':[1,1,1],'MS':[17,17,1]}, # BerlinV2X
-    '5G_addix':{'data':'kappa-selected-5G-D2-WAVELAB-2023-12-07T12-15.json.csv','T':'txbitspersecond','M':[12,12,12],'S':[1,1,1],'MS':[12,12,1]}, # ADDIX-Kappa
+    'Beyond5G':{'data':'Download-limited.csv','T':'DL_bitrate','M':[9,9,9],'S':[1,1,1],'MS':[9,9,1]}, #Beyond5G
+
+    # filtered_data_downlink_selected_pc1_op1.csv 19564
+    # filtered_data_downlink_selected_pc4_op1.csv 9554
+    # filtered_data_downlink_selected_pc2_op2.csv 8779
+    # filtered_data_downlink_selected_pc3_op2.csv 14776
+    # concat_filtered_data_downlink.csv
+    # concat_filtered_data_downlink_old_features.csv
+    #'5G_berlin':{'data':'concat_filtered_data_downlink.csv','T':'datarate','M':[15,15,15],'S':[1,1,1],'MS':[15,15,1]}, # BerlinV2X
+    'BerlinV2X':{'data':'concat_filtered_data_downlink_old_features.csv','T':'datarate','M':[17,17,17],'S':[1,1,1],'MS':[17,17,1]}, # BerlinV2X
+    #'5G_berlin':{'data':'filtered_data_downlink_pc1_op1_selected_old.csv','T':'datarate','M':[17,17,17],'S':[1,1,1],'MS':[17,17,1]}, # BerlinV2X 
+    
+    '5G_addix_kappa':{'data':'kappa-selected-5G-D2-WAVELAB-2023-12-07T12-15.json.csv','T':'txbitspersecond','M':[12,12,12],'S':[1,1,1],'MS':[12,12,1]}, # ADDIX-Kappa
+    '5G_addix_elastic':{'data':'captn-wan-v1-5G-D2-WAVELAB-2024-02-15T09-T15-processed.csv','T':'lrxbitspersecond','M':[31,31,31],'S':[1,1,1],'MS':[31,31,1]}, # ADDIX-ElasticSearch
     'WTH':{'data':'WTH.csv','T':'WetBulbCelsius','M':[12,12,12],'S':[1,1,1],'MS':[12,12,1]},
     'ECL':{'data':'ECL.csv','T':'MT_320','M':[321,321,321],'S':[1,1,1],'MS':[321,321,1]},
     'Solar':{'data':'solar_AL.csv','T':'POWER_136','M':[137,137,137],'S':[1,1,1],'MS':[137,137,1]},
@@ -104,11 +120,17 @@ print(args)
 
 Exp = Exp_Informer
 
-""" for ii in range(args.itr):
+for ii in range(args.itr):
+
+    seed = 42
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
     
     wandb.login()
     
-    run = wandb.init(project="time-series-informer", config=args)
+    logger = wandb.init(project="time-series-informer", config=args)
 
     # setting record of experiments
     setting = '{}_{}_ft{}_sl{}_ll{}_pl{}_dm{}_nh{}_el{}_dl{}_df{}_at{}_fc{}_eb{}_dt{}_mx{}_{}_{}'.format(args.model, args.data, args.features, 
@@ -118,18 +140,24 @@ Exp = Exp_Informer
 
     exp = Exp(args) # set experiments
     print('>>>>>>>start training : {}>>>>>>>>>>>>>>>>>>>>>>>>>>'.format(setting))
+    start = time.time()
     exp.train(setting)
+    print('Training time: {} s'.format(time.time()-start))
     
     print('>>>>>>>testing : {}<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<'.format(setting))
-    exp.test(setting, run)
+    start = time.time()
+    exp.test(setting, logger)
+    print('Testing time: {} s'.format(time.time()-start))
 
     if args.do_predict:
         print('>>>>>>>predicting : {}<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<'.format(setting))
+        start = time.time()
         exp.predict(setting, True)
+        print('Prediction time: {} s'.format(time.time()-start))
 
     torch.cuda.empty_cache()
 
-    wandb.finish() """
+    wandb.finish()
 
 sweep_configuration = {
         'method': 'grid', # grid, random, bayes
@@ -141,17 +169,17 @@ sweep_configuration = {
             'type': 'hyperband',
             'min_iter': 3},
         'parameters': {
-            #'features': {'values': ['MS']},
-            #'freq': {'values': ['s']},
-            'seq_len': {'values': [16, (96)]}, # 16, 32, 48, 64, (96)
+            'features': {'values': ['MS']},
+            'freq': {'values': ['s']},
+            'seq_len': {'values': [96]}, # 16, 32, 48, 64, (96)
             #'label_len': {'values': [2]}, # 4, 8, 16, (48)
-            #'pred_len': {'values': [1]},
+            'pred_len': {'values': [1, 2, 3, 6, 12, 24]},
 
-            'd_model': {'values': [256, (512), 1024]}, # 256, (512), 1024, 2048
-            'n_heads': {'values': [6]}, # 4, 6, (8)
-            'e_layers': {'values': [3]}, # 1, (2), 3
-            'd_layers': {'values': [(1), 2, 3]}, # (1), 2, 3
-            'd_ff': {'values': [1024, (2048)]}, #256, 512, 1024, (2048)
+            'd_model': {'values': [(512)]}, # 256, (512), 1024, 2048
+            'n_heads': {'values': [(8)]}, # 4, 6, (8)
+            'e_layers': {'values': [(2)]}, # 1, (2), 3
+            'd_layers': {'values': [(1)]}, # (1), 2, 3
+            'd_ff': {'values': [(2048)]}, #256, 512, 1024, (2048)
 
             'dropout': {'values': [0.05]},
             #'attn': {'values': ['prob']}, # prob, full
@@ -159,28 +187,34 @@ sweep_configuration = {
             #'activation': {'values': ['gelu']}, #'gelu', 'relu', 'LeakyReLU'??
 
             #'itr': {'values': [1]},
-            #'train_epochs': {'values': [20]},
+            'train_epochs': {'values': [6]},
             #'batch_size': {'values': [32]},
             #'patience': {'values': [3]},
             'learning_rate': {'values': [(0.0001)]}, # 0.01, 0.001, (0.0001) 
             #'loss': {'values': ['mse']}, # l1
             #'scaler': {'values': ['standard']}, #'standard', 'minmax'
-            'optimizer': {'values': ['Adam', 'AdamW']}, # 'Adam', 'AdamW'
+            'optimizer': {'values': ['Adam']}, # '(Adam)', 'AdamW'
             #'lr_scheduler': {'values': ['StepLR', 'ReduceLROnPlateau']},
         },
         'run_cap' : 1000
     }
-sweep_id = wandb.sweep(sweep=sweep_configuration, project='time-series-informer')
-sweep_id = 'sebajyex'
-print(f'sweep_id {sweep_id}')
+#sweep_id = wandb.sweep(sweep=sweep_configuration, project='time-series-informer')
+#sweep_id = 'isji81ed'
+#print(f'sweep_id {sweep_id}')
 
 def wandb_train(config=None):
 
     for ii in range(args.itr):
 
+        seed = 42
+        random.seed(seed)
+        np.random.seed(seed)
+        torch.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
+
         wandb.login()
     
-        run = wandb.init(config=args, allow_val_change=True)
+        logger = wandb.init(config=args, allow_val_change=True)
         wandb.config.update({"label_len": wandb.config["seq_len"] // 2}, allow_val_change=True)
         print(f'wandb.config {wandb.config}')
 
@@ -203,12 +237,12 @@ def wandb_train(config=None):
         exp.train(setting)
         
         print('>>>>>>>testing : {}<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<'.format(setting))
-        exp.test(setting, run)
+        exp.test(setting, logger)
 
-        run.finish()
+        logger.finish()
         #wandb.finish()
 
         torch.cuda.empty_cache()
 
 
-wandb.agent(sweep_id, function=wandb_train)
+#wandb.agent(sweep_id, function=wandb_train)

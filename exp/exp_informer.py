@@ -17,6 +17,8 @@ from torch.utils.data import DataLoader
 import os
 import time
 import wandb
+import matplotlib.pyplot as plt
+from torchinfo import summary
 
 import warnings
 warnings.filterwarnings('ignore')
@@ -59,6 +61,22 @@ class Exp_Informer(Exp_Basic):
         
         if self.args.use_multi_gpu and self.args.use_gpu:
             model = nn.DataParallel(model, device_ids=self.args.device_ids)
+        
+        """ # Define the sizes
+        batch_size = 32
+        input_seq_length = 96
+        output_seq_length = 60
+        input_feature_dim = 17
+        output_feature_dim = 6
+
+        # Create dummy data tensors
+        batch_x = torch.randn(batch_size, input_seq_length, input_feature_dim)
+        batch_x_mark = torch.randn(batch_size, input_seq_length, output_feature_dim)
+        dec_inp = torch.randn(batch_size, output_seq_length, input_feature_dim)
+        batch_y_mark = torch.randn(batch_size, output_seq_length, output_feature_dim)
+
+        #print(summary(model, input_size=([32, 96, 17], [32, 96, 6], [32, 60, 17], [32, 60, 6]), verbose=2))
+        print(summary(model, input_data=(batch_x, batch_x_mark, dec_inp, batch_y_mark), verbose=2)) """
         return model
 
     def _get_data(self, flag):
@@ -73,12 +91,13 @@ class Exp_Informer(Exp_Basic):
             'ECL':Dataset_Custom,
             'Solar':Dataset_Custom,
             'custom':Dataset_Custom,
-            '4G_mm15':Dataset_Custom,
+            'NYU-METS-MM15':Dataset_Custom,
             '4G_tt7':Dataset_Custom,
             '4G_bus':Dataset_Custom,
-            '5G_beyond':Dataset_Custom,
-            '5G_berlin':Dataset_Custom,
-            '5G_addix':Dataset_Custom,
+            'Beyond5G':Dataset_Custom,
+            'BerlinV2X':Dataset_Custom,
+            '5G_addix_kappa':Dataset_Custom,
+            '5G_addix_elastic':Dataset_Custom,
         }
         Data = data_dict[self.args.data]
         timeenc = 0 if args.embed!='timeF' else 1
@@ -231,7 +250,7 @@ class Exp_Informer(Exp_Basic):
         
         return self.model
 
-    def test(self, setting, run):
+    def test(self, setting, logger):
         test_data, test_loader = self._get_data(flag='test')
         
         self.model.eval()
@@ -282,46 +301,112 @@ class Exp_Informer(Exp_Basic):
         if not os.path.exists(folder_path):
             os.makedirs(folder_path)
 
-        mae, mse, rmse, mape, mspe = metric(preds, trues)
-        m_n='BandFormer'
-        print(f'{m_n} rmse:{rmse}, mae:{mae}, mse:{mse}')
-        wandb.log({m_n+" rmse": rmse, m_n+" mae": mae, m_n+" mse": mse})
+        if self.args.pred_len == 1:
+            print(f'before flatten shape trues: {trues.shape}, preds: {preds.shape}')
+            trues = trues.flatten()
+            preds = preds.flatten()
+            print(f'after  flatten shape trues: {trues.shape}, preds: {preds.shape}')
 
-        np.save(folder_path+'metrics.npy', np.array([mae, mse, rmse, mape, mspe]))
-        np.save(folder_path+'pred.npy', preds)
-        np.save(folder_path+'true.npy', trues)
-
-        artifact = wandb.Artifact(name="informer-predictions", type="data")
-        artifact.add_file(local_path=folder_path+'pred.npy')
-        run.log_artifact(artifact)
-
-        artifact = wandb.Artifact(name="informer-labels", type="data")
-        artifact.add_file(local_path=folder_path+'true.npy')
-        run.log_artifact(artifact)
-
-        if False:#self.args.pred_len == 1:
             shift_by = 1
             span = 8
-
-            df = pd.DataFrame({'trues': trues.flatten(), 'preds': preds.flatten()})
+            df = pd.DataFrame({'trues': trues, 'preds': preds})
             df['shifted'] = df['trues'].shift(shift_by, fill_value=0)
-            #df['sma']     = df['trues'].rolling(span).mean()
-            df['ewma8']   = df['trues'].ewm(span=span, adjust=True).mean()
+            df['ewma8']   = df['trues'].ewm(span=span, adjust=True).mean().shift(shift_by, fill_value=0)
 
-            mae, mse, rmse, mape, mspe = metric(df['shifted'].to_numpy(), df['trues'].to_numpy())
+            ae, mae, mse, rmse, std = metric(preds, trues)
+            m_n='Informer'
+            print(f'{m_n} rmse:{rmse}, mae:{mae}, mse:{mse}, std:{std}')
+            wandb.log({m_n+" rmse": rmse, m_n+" mae": mae, m_n+" mse": mse, m_n+" std": std})
+
+            np.save(folder_path+'metrics.npy', np.array([mae, mse, rmse, std]))
+            np.save(folder_path+'pred.npy', preds)
+            np.save(folder_path+'true.npy', trues)        
+
+            artifact = wandb.Artifact(name="informer-predictions", type="data")
+            artifact.add_file(local_path=folder_path+'pred.npy')
+            logger.log_artifact(artifact)
+
+            artifact = wandb.Artifact(name="informer-labels", type="data")
+            artifact.add_file(local_path=folder_path+'true.npy')
+            logger.log_artifact(artifact)
+
+            ae_shifted, mae, mse, rmse, std = metric(df['shifted'].to_numpy(), df['trues'].to_numpy())
             m_n='Shifted'
-            print(f'{m_n} rmse:{rmse}, mae:{mae}, mse:{mse}')
-            wandb.log({m_n+" rmse": rmse, m_n+" mae": mae, m_n+" mse": mse})
+            print(f'{m_n} rmse:{rmse}, mae:{mae}, mse:{mse}, std:{std}')
+            wandb.log({m_n+" rmse": rmse, m_n+" mae": mae, m_n+" mse": mse, m_n+" std": std})
 
-            """ mae, mse, rmse, mape, mspe = metric(df['sma'].to_numpy(), trues)
-            m_n='SMA'
-            print(f'{m_n} rmse:{rmse}, mae:{mae}, mse:{mse}')
-            wandb.log({m_n+" rmse": rmse, m_n+" mae": mae, m_n+" mse": mse}) """
-
-            mae, mse, rmse, mape, mspe = metric(df['ewma8'].to_numpy(), df['trues'].to_numpy())
+            ae_ewma8, mae, mse, rmse, std = metric(df['ewma8'].to_numpy(), df['trues'].to_numpy())
             m_n='EWMA8'
-            print(f'{m_n} rmse:{rmse}, mae:{mae}, mse:{mse}')
-            wandb.log({m_n+" rmse": rmse, m_n+" mae": mae, m_n+" mse": mse})
+            print(f'{m_n} rmse:{rmse}, mae:{mae}, mse:{mse}, std:{std}')
+            wandb.log({m_n+" rmse": rmse, m_n+" mae": mae, m_n+" mse": mse, m_n+" std": std})
+
+            if self.args.data == 'Beyond5G':
+                divider = 1024
+            elif self.args.data == 'BerlinV2X':
+                divider = 1024*1024
+            elif self.args.data == 'NYU-METS-MM15':
+                divider = 1
+            else:
+                divider = 1
+
+            ser_model = pd.Series(ae/(divider))
+            ser_shifted = pd.Series(ae_shifted/(divider))
+            ser_ewma8 = pd.Series(ae_ewma8/(divider))
+
+            plt.figure(figsize=(16,9), dpi=200)
+            #plt.hist([ser_model, ser_shifted, ser_ewma8], cumulative=True, density=1, bins=100, histtype=u'step', alpha=1, label=['Informer', 'Shifted', 'EWMA8'])
+            plt.ecdf(ser_model, label='ecdf Informer')
+            plt.ecdf(ser_shifted, label='ecdf Shifted')
+            plt.ecdf(ser_ewma8, label='ecdf EWMA8')
+            plt.ylabel('Percentage')
+            plt.xlabel('Absolute Error (Mbit/s)')
+            plt.xscale('log', base=10)
+            plt.title('Cumulative Distribution Function of Absolute Errors')
+            plt.grid(True)
+            plt.legend()
+            plt.show()
+            plt.savefig(f'plots/CDF-{setting}.pdf', bbox_inches='tight')
+            wandb.log({"CDF": wandb.Image(plt)})
+            
+            """ plt.figure(dpi=200)
+            plt.hist(ser_shifted, cumulative=True, density=1, bins=100)
+            plt.ylabel('Percentage')
+            plt.xlabel('Absolute Error')
+            plt.title('Cumulative Distribution Function of Absolute Errors - Shifted')
+            plt.grid(True)
+            plt.legend()
+            plt.show()
+            plt.savefig(f'plots/CDF-Shifted-{setting}.pdf', bbox_inches='tight')
+            wandb.log({"CDF Shifted": plt})
+
+            plt.figure(dpi=200)
+            plt.hist(ser_ewma8, cumulative=True, density=1, bins=100)
+            plt.ylabel('Percentage')
+            plt.xlabel('Absolute Error')
+            plt.title('Cumulative Distribution Function of Absolute Errors - EWMA8')
+            plt.grid(True)
+            plt.legend()
+            plt.show()
+            plt.savefig(f'plots/CDF-EWMA8-{setting}.pdf', bbox_inches='tight')
+            wandb.log({"CDF EWMA8": plt}) """
+
+        else:
+            ae, mae, mse, rmse, std = metric(preds, trues)
+            m_n='Informer'
+            print(f'{m_n} rmse:{rmse}, mae:{mae}, mse:{mse}, std:{std}')
+            wandb.log({m_n+" rmse": rmse, m_n+" mae": mae, m_n+" mse": mse, m_n+" std": std})
+
+            np.save(folder_path+'metrics.npy', np.array([mae, mse, rmse, std]))
+            np.save(folder_path+'pred.npy', preds)
+            np.save(folder_path+'true.npy', trues)        
+
+            artifact = wandb.Artifact(name="informer-predictions", type="data")
+            artifact.add_file(local_path=folder_path+'pred.npy')
+            logger.log_artifact(artifact)
+
+            artifact = wandb.Artifact(name="informer-labels", type="data")
+            artifact.add_file(local_path=folder_path+'true.npy')
+            logger.log_artifact(artifact)
 
         return
 
@@ -382,6 +467,9 @@ class Exp_Informer(Exp_Basic):
             if self.args.output_attention:
                 outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)[0]
             else:
+                #test = (batch_x, batch_x_mark, dec_inp, batch_y_mark)
+                #print(f'test.size:{test.size()}')
+                #print(f'batch_x.size:{batch_x.size()}, batch_x_mark.size:{batch_x_mark.size()}, dec_inp.size:{dec_inp.size()}, batch_y_mark.size:{batch_y_mark.size()}')
                 outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
         #print(f'output.size: {outputs.size()}')
         #print(outputs)
