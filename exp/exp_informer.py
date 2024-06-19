@@ -19,6 +19,9 @@ import time
 import wandb
 import matplotlib.pyplot as plt
 from torchinfo import summary
+from calflops import calculate_flops
+from torchprofile import profile_macs
+from lightning.fabric.utilities import measure_flops
 
 import warnings
 warnings.filterwarnings('ignore')
@@ -62,8 +65,8 @@ class Exp_Informer(Exp_Basic):
         if self.args.use_multi_gpu and self.args.use_gpu:
             model = nn.DataParallel(model, device_ids=self.args.device_ids)
         
-        """ # Define the sizes
-        batch_size = 32
+        # Define the sizes
+        batch_size = 1
         input_seq_length = 96
         output_seq_length = 60
         input_feature_dim = 17
@@ -76,7 +79,33 @@ class Exp_Informer(Exp_Basic):
         batch_y_mark = torch.randn(batch_size, output_seq_length, output_feature_dim)
 
         #print(summary(model, input_size=([32, 96, 17], [32, 96, 6], [32, 60, 17], [32, 60, 6]), verbose=2))
-        print(summary(model, input_data=(batch_x, batch_x_mark, dec_inp, batch_y_mark), verbose=2)) """
+        print('torchinfo summary')
+        print(summary(model, input_data=(batch_x, batch_x_mark, dec_inp, batch_y_mark), verbose=2))
+
+        """ print('calflops calculate_flops')
+        flops, macs, params = calculate_flops(model=model, 
+                                        input_shape=([32, 96, 17], [32, 96, 6], [32, 60, 17], [32, 60, 6]),
+                                        output_as_string=True,
+                                        output_precision=4)
+        print("Informer FLOPs:%s   MACs:%s   Params:%s \n" %(flops, macs, params)) """
+
+        print('torctorchprofilehinfo profile_macs')
+        model.cuda()
+        batch_x = batch_x.cuda()
+        batch_x_mark = batch_x_mark.cuda()
+        dec_inp = dec_inp.cuda()
+        batch_y_mark = batch_y_mark.cuda()
+        macs = profile_macs(model, (batch_x, batch_x_mark, dec_inp, batch_y_mark))
+        print(macs)
+
+        model_fwd = lambda: model((batch_x, batch_x_mark, dec_inp, batch_y_mark))
+        fwd_flops = measure_flops(model, model_fwd)
+        print(f'fwd_flops: {fwd_flops}')
+
+        model_loss = lambda y: y.sum()
+        fwd_and_bwd_flops = measure_flops(model, model_fwd, model_loss)
+        print(f'fwd_and_bwd_flops: {fwd_and_bwd_flops}')
+
         return model
 
     def _get_data(self, flag):

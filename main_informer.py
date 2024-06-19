@@ -51,8 +51,8 @@ parser.add_argument('--mix', action='store_false', help='use mix attention in ge
 parser.add_argument('--cols', type=str, nargs='+', help='certain cols from the data files as the input features')
 parser.add_argument('--num_workers', type=int, default=0, help='data loader num workers')
 parser.add_argument('--itr', type=int, default=1, help='experiments times')
-parser.add_argument('--train_epochs', type=int, default=6, help='train epochs')
-parser.add_argument('--batch_size', type=int, default=32, help='batch size of train input data')
+parser.add_argument('--train_epochs', type=int, default=1, help='train epochs')
+parser.add_argument('--batch_size', type=int, default=1, help='batch size of train input data')
 parser.add_argument('--patience', type=int, default=3, help='early stopping patience')
 parser.add_argument('--learning_rate', type=float, default=0.0001, help='optimizer learning rate')
 parser.add_argument('--optimizer', type=str, default='adam', help='optimizer')
@@ -96,7 +96,7 @@ data_parser = {
     # concat_filtered_data_downlink.csv
     # concat_filtered_data_downlink_old_features.csv
     #'5G_berlin':{'data':'concat_filtered_data_downlink.csv','T':'datarate','M':[15,15,15],'S':[1,1,1],'MS':[15,15,1]}, # BerlinV2X
-    'BerlinV2X':{'data':'concat_filtered_data_downlink_old_features.csv','T':'datarate','M':[17,17,17],'S':[1,1,1],'MS':[17,17,1]}, # BerlinV2X
+    'BerlinV2X':{'data':'concat_filtered_data_downlink_old_features_1000.csv','T':'datarate','M':[17,17,17],'S':[1,1,1],'MS':[17,17,1]}, # BerlinV2X
     #'5G_berlin':{'data':'filtered_data_downlink_pc1_op1_selected_old.csv','T':'datarate','M':[17,17,17],'S':[1,1,1],'MS':[17,17,1]}, # BerlinV2X 
     
     '5G_addix_kappa':{'data':'kappa-selected-5G-D2-WAVELAB-2023-12-07T12-15.json.csv','T':'txbitspersecond','M':[12,12,12],'S':[1,1,1],'MS':[12,12,1]}, # ADDIX-Kappa
